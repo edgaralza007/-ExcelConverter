@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DCF Model Visualizer</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- Upload Screen -->
+  <div id="upload-screen">
+    <div id="upload-zone">
+      <div class="upload-icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <h1>DCF Model Visualizer</h1>
+      <p>Drag &amp; drop your Excel DCF model here</p>
+      <p class="upload-hint">or</p>
+      <label class="file-btn">
+        Browse Files
+        <input type="file" id="file-input" accept=".xlsx,.xls,.csv" hidden>
+      </label>
+      <p class="supported-formats">Supports .xlsx, .xls, .csv</p>
+    </div>
+    <div id="upload-error" class="error-msg" hidden></div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" hidden>
+    <header>
+      <h1>DCF Analysis Dashboard</h1>
+      <div class="header-actions">
+        <span id="file-name" class="file-label"></span>
+        <button id="reset-btn" class="btn-reset">Upload New File</button>
+      </div>
+    </header>
+
+    <!-- Summary Cards -->
+    <section id="summary-cards" class="cards-grid">
+      <div class="card" id="card-ev">
+        <span class="card-label">Enterprise Value</span>
+        <span class="card-value" id="val-ev">--</span>
+      </div>
+      <div class="card" id="card-equity">
+        <span class="card-label">Equity Value / Share</span>
+        <span class="card-value" id="val-equity">--</span>
+      </div>
+      <div class="card" id="card-wacc">
+        <span class="card-label">WACC</span>
+        <span class="card-value" id="val-wacc">--</span>
+      </div>
+      <div class="card" id="card-terminal-growth">
+        <span class="card-label">Terminal Growth Rate</span>
+        <span class="card-value" id="val-terminal-growth">--</span>
+      </div>
+      <div class="card" id="card-terminal-value">
+        <span class="card-label">Terminal Value</span>
+        <span class="card-value" id="val-terminal-value">--</span>
+      </div>
+      <div class="card" id="card-irr">
+        <span class="card-label">Implied IRR</span>
+        <span class="card-value" id="val-irr">--</span>
+      </div>
+    </section>
+
+    <!-- Charts -->
+    <section class="charts-grid">
+      <div class="chart-container" id="chart-revenue-fcf-wrap">
+        <h2>Revenue &amp; Free Cash Flow Trend</h2>
+        <canvas id="chart-revenue-fcf"></canvas>
+      </div>
+      <div class="chart-container" id="chart-margins-wrap">
+        <h2>Margin Analysis</h2>
+        <canvas id="chart-margins"></canvas>
+      </div>
+      <div class="chart-container" id="chart-waterfall-wrap">
+        <h2>Cash Flow Waterfall</h2>
+        <canvas id="chart-waterfall"></canvas>
+      </div>
+      <div class="chart-container" id="chart-valuation-wrap">
+        <h2>DCF Valuation Breakdown</h2>
+        <canvas id="chart-valuation"></canvas>
+      </div>
+      <div class="chart-container" id="chart-growth-wrap">
+        <h2>Year-over-Year Growth Rates</h2>
+        <canvas id="chart-growth"></canvas>
+      </div>
+      <div class="chart-container" id="sensitivity-wrap">
+        <h2>Sensitivity Analysis</h2>
+        <div id="sensitivity-table"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
