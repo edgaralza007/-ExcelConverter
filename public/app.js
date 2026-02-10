@@ -1,6 +1,6 @@
 /* ============================================================
    DCF Model Excel Visualizer — app.js
-   Fully client-side: SheetJS (xlsx) + Chart.js
+   Client-side parsing + backend auth & file storage
    ============================================================ */
 
 (function () {
@@ -15,8 +15,259 @@
   const fileNameLabel  = document.getElementById('file-name');
   const resetBtn       = document.getElementById('reset-btn');
 
+  // Auth DOM refs
+  const authLoggedOut    = document.getElementById('auth-logged-out');
+  const authLoggedIn     = document.getElementById('auth-logged-in');
+  const authUsername      = document.getElementById('auth-username');
+  const showLoginBtn     = document.getElementById('show-login-btn');
+  const showRegisterBtn  = document.getElementById('show-register-btn');
+  const logoutBtn        = document.getElementById('logout-btn');
+  const authModal        = document.getElementById('auth-modal');
+  const authModalTitle   = document.getElementById('auth-modal-title');
+  const authForm         = document.getElementById('auth-form');
+  const authUsernameInput = document.getElementById('auth-username-input');
+  const authPasswordInput = document.getElementById('auth-password-input');
+  const authError        = document.getElementById('auth-error');
+  const authSubmitBtn    = document.getElementById('auth-submit-btn');
+  const authModalClose   = document.getElementById('auth-modal-close');
+  const saveFileBtn      = document.getElementById('save-file-btn');
+  const myFilesPanel     = document.getElementById('my-files');
+  const myFilesList      = document.getElementById('my-files-list');
+  const myFilesEmpty     = document.getElementById('my-files-empty');
+
+  // State
+  let currentFile = null;  // the File object currently being viewed
+  let isLoggedIn = false;
+
   // Chart instances (so we can destroy on re-upload)
   let charts = [];
+
+  // ────────────────────────────────────────────────
+  //  AUTH UI
+  // ────────────────────────────────────────────────
+
+  // What mode is the modal in? 'login' or 'register'
+  let authMode = 'login';
+
+  showLoginBtn.addEventListener('click', () => openAuthModal('login'));
+  showRegisterBtn.addEventListener('click', () => openAuthModal('register'));
+  authModalClose.addEventListener('click', closeAuthModal);
+  authModal.addEventListener('click', (e) => {
+    if (e.target === authModal) closeAuthModal();  // click outside closes
+  });
+
+  function openAuthModal(mode) {
+    authMode = mode;
+    authModalTitle.textContent = mode === 'login' ? 'Log In' : 'Register';
+    authSubmitBtn.textContent = mode === 'login' ? 'Log In' : 'Create Account';
+    authPasswordInput.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+    authUsernameInput.value = '';
+    authPasswordInput.value = '';
+    authError.hidden = true;
+    authModal.classList.add('active');
+    authUsernameInput.focus();
+  }
+
+  function closeAuthModal() {
+    authModal.classList.remove('active');
+  }
+
+  // Handle form submit — sends to /api/login or /api/register
+  authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    authError.hidden = true;
+
+    const username = authUsernameInput.value.trim();
+    const password = authPasswordInput.value;
+
+    const endpoint = authMode === 'login' ? '/api/login' : '/api/register';
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        authError.textContent = data.error;
+        authError.hidden = false;
+        return;
+      }
+
+      // Success — update UI
+      setLoggedIn(data.username);
+      closeAuthModal();
+    } catch (err) {
+      authError.textContent = 'Network error. Is the server running?';
+      authError.hidden = false;
+    }
+  });
+
+  logoutBtn.addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    setLoggedOut();
+  });
+
+  function setLoggedIn(username) {
+    isLoggedIn = true;
+    authLoggedOut.hidden = true;
+    authLoggedIn.hidden = false;
+    authUsername.textContent = username;
+    // Show save button if on dashboard
+    if (!dashboard.hidden) saveFileBtn.hidden = false;
+    // Show saved files panel and load files
+    myFilesPanel.hidden = false;
+    loadMyFiles();
+  }
+
+  function setLoggedOut() {
+    isLoggedIn = false;
+    authLoggedOut.hidden = false;
+    authLoggedIn.hidden = true;
+    authUsername.textContent = '';
+    saveFileBtn.hidden = true;
+    myFilesPanel.hidden = true;
+    myFilesList.innerHTML = '';
+  }
+
+  // Check if already logged in on page load
+  async function checkAuth() {
+    try {
+      const res = await fetch('/api/me');
+      if (res.ok) {
+        const data = await res.json();
+        setLoggedIn(data.username);
+      }
+    } catch (e) {
+      // Server not running or network error — just stay logged out
+    }
+  }
+
+  // ────────────────────────────────────────────────
+  //  SAVED FILES UI
+  // ────────────────────────────────────────────────
+
+  async function loadMyFiles() {
+    try {
+      const res = await fetch('/api/files');
+      if (!res.ok) return;
+      const files = await res.json();
+
+      myFilesList.innerHTML = '';
+      if (files.length === 0) {
+        myFilesEmpty.hidden = false;
+        return;
+      }
+      myFilesEmpty.hidden = true;
+
+      for (const f of files) {
+        const item = document.createElement('div');
+        item.className = 'file-item';
+
+        const date = new Date(f.uploaded_at).toLocaleDateString();
+        item.innerHTML = `
+          <div class="file-item-info" data-id="${f.id}">
+            <span class="file-item-name">${escapeHtml(f.filename)}</span>
+            <span class="file-item-date">${date}</span>
+          </div>
+          <div class="file-item-actions">
+            <button class="btn-file-action load-btn" data-id="${f.id}">Load</button>
+            <button class="btn-file-action delete btn-delete" data-id="${f.id}">Delete</button>
+          </div>
+        `;
+        myFilesList.appendChild(item);
+      }
+
+      // Attach event listeners
+      myFilesList.querySelectorAll('.load-btn').forEach((btn) => {
+        btn.addEventListener('click', () => loadSavedFile(btn.dataset.id));
+      });
+      myFilesList.querySelectorAll('.btn-delete').forEach((btn) => {
+        btn.addEventListener('click', () => deleteSavedFile(btn.dataset.id));
+      });
+    } catch (e) {
+      // Network error
+    }
+  }
+
+  async function loadSavedFile(id) {
+    try {
+      const res = await fetch(`/api/files/${id}`);
+      if (!res.ok) return;
+
+      // Get filename from Content-Disposition header
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="(.+)"/);
+      const filename = match ? match[1] : 'saved-file.xlsx';
+
+      // Convert response to a File object and process it
+      const blob = await res.blob();
+      const file = new File([blob], filename);
+      handleFile(file);
+    } catch (e) {
+      showError('Failed to load saved file.');
+    }
+  }
+
+  async function deleteSavedFile(id) {
+    try {
+      const res = await fetch(`/api/files/${id}`, { method: 'DELETE' });
+      if (res.ok) loadMyFiles();  // refresh the list
+    } catch (e) {
+      // Network error
+    }
+  }
+
+  // Save the currently viewed file to the server
+  saveFileBtn.addEventListener('click', async () => {
+    if (!currentFile || !isLoggedIn) return;
+
+    saveFileBtn.disabled = true;
+    saveFileBtn.textContent = 'Saving...';
+
+    try {
+      const formData = new FormData();
+      formData.append('file', currentFile);
+
+      const res = await fetch('/api/files', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        saveFileBtn.textContent = 'Saved!';
+        loadMyFiles();  // refresh file list
+        setTimeout(() => {
+          saveFileBtn.textContent = 'Save to My Files';
+          saveFileBtn.disabled = false;
+        }, 2000);
+      } else {
+        const data = await res.json();
+        saveFileBtn.textContent = data.error || 'Error';
+        setTimeout(() => {
+          saveFileBtn.textContent = 'Save to My Files';
+          saveFileBtn.disabled = false;
+        }, 2000);
+      }
+    } catch (e) {
+      saveFileBtn.textContent = 'Network Error';
+      setTimeout(() => {
+        saveFileBtn.textContent = 'Save to My Files';
+        saveFileBtn.disabled = false;
+      }, 2000);
+    }
+  });
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Check auth status on page load
+  checkAuth();
 
   // ── Upload handling ──
   uploadZone.addEventListener('dragover', (e) => {
@@ -48,7 +299,10 @@
     uploadScreen.style.display = '';
     fileInput.value = '';
     uploadError.hidden = true;
+    currentFile = null;
+    saveFileBtn.hidden = true;
     document.getElementById('sensitivity-table').innerHTML = '';
+    if (isLoggedIn) loadMyFiles();  // refresh file list when returning
   });
 
   function showError(msg) {
@@ -58,6 +312,7 @@
 
   function handleFile(file) {
     uploadError.hidden = true;
+    currentFile = file;  // track for saving later
     const ext = file.name.split('.').pop().toLowerCase();
     if (!['xlsx', 'xls', 'csv'].includes(ext)) {
       showError('Unsupported file type. Please upload .xlsx, .xls, or .csv');
@@ -367,6 +622,11 @@
     uploadScreen.style.display = 'none';
     dashboard.hidden = false;
     fileNameLabel.textContent = fileName;
+
+    // Show save button if logged in
+    saveFileBtn.hidden = !isLoggedIn;
+    saveFileBtn.textContent = 'Save to My Files';
+    saveFileBtn.disabled = false;
 
     renderSummaryCards(data);
     renderRevenueFCF(data);

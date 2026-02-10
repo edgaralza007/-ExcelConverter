@@ -9,6 +9,35 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body>
+  <!-- Auth Bar — always visible at top -->
+  <nav id="auth-bar">
+    <!-- Shown when logged out -->
+    <div id="auth-logged-out">
+      <span class="auth-prompt">Log in to save files</span>
+      <button id="show-login-btn" class="btn-auth">Log In</button>
+      <button id="show-register-btn" class="btn-auth btn-auth-alt">Register</button>
+    </div>
+    <!-- Shown when logged in -->
+    <div id="auth-logged-in" hidden>
+      <span id="auth-username" class="auth-user"></span>
+      <button id="logout-btn" class="btn-auth btn-auth-alt">Log Out</button>
+    </div>
+  </nav>
+
+  <!-- Auth Modal (login & register share one modal) -->
+  <div id="auth-modal" class="modal-overlay">
+    <div class="modal-box">
+      <h2 id="auth-modal-title">Log In</h2>
+      <form id="auth-form">
+        <input type="text" id="auth-username-input" placeholder="Username" autocomplete="username" required>
+        <input type="password" id="auth-password-input" placeholder="Password" autocomplete="current-password" required>
+        <div id="auth-error" class="error-msg" hidden></div>
+        <button type="submit" id="auth-submit-btn" class="btn-primary">Log In</button>
+      </form>
+      <button id="auth-modal-close" class="btn-modal-close">&times;</button>
+    </div>
+  </div>
+
   <!-- Upload Screen -->
   <div id="upload-screen">
     <div id="upload-zone">
@@ -29,6 +58,13 @@
       <p class="supported-formats">Supports .xlsx, .xls, .csv</p>
     </div>
     <div id="upload-error" class="error-msg" hidden></div>
+
+    <!-- My Saved Files (only visible when logged in) -->
+    <div id="my-files" class="my-files-panel" hidden>
+      <h2>My Saved Files</h2>
+      <div id="my-files-list" class="files-list"></div>
+      <p id="my-files-empty" class="text-muted">No saved files yet. Upload and save a DCF model to see it here.</p>
+    </div>
   </div>
 
   <!-- Dashboard -->
@@ -37,6 +73,7 @@
       <h1>DCF Analysis Dashboard</h1>
       <div class="header-actions">
         <span id="file-name" class="file-label"></span>
+        <button id="save-file-btn" class="btn-save" hidden>Save to My Files</button>
         <button id="reset-btn" class="btn-reset">Upload New File</button>
       </div>
     </header>
