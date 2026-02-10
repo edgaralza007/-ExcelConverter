@@ -55,7 +55,10 @@ const upload = multer({
 // ── 3. Database setup ──
 // This creates (or opens) a SQLite file at data/app.db.
 // SQLite stores everything in this one file — no separate database server.
-const db = new Database(path.join(__dirname, 'data', 'app.db'));
+const fs = require('fs');
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);  // create data/ if missing
+const db = new Database(path.join(dataDir, 'app.db'));
 
 // Enable WAL mode for better performance with concurrent reads
 db.pragma('journal_mode = WAL');
