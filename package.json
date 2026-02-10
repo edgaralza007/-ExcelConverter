@@ -19,9 +19,9 @@
   "homepage": "https://github.com/edgaralza007/-ExcelConverter#readme",
   "dependencies": {
     "bcrypt": "^6.0.0",
-    "better-sqlite3": "^12.6.2",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
-    "multer": "^2.0.2"
+    "multer": "^2.0.2",
+    "pg": "^8.18.0"
   }
 }
