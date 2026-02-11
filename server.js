@@ -3,18 +3,53 @@
 //  Run with: node server.js
 // ============================================================
 
+require('dotenv').config();
+
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const multer = require('multer');
+const helmet = require('helmet');
+const cors = require('cors');
+const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
 
-// ── 1. Create the Express app ──
+// ── 1. App + PORT ──
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ── 2. Middleware ──
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+
+// Request logging
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+// Secure HTTP headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
+    },
+  },
+}));
+
+// CORS
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || `http://localhost:${PORT}`,
+  credentials: true,
+}));
 
 app.set('trust proxy', 1);
 
@@ -22,8 +57,18 @@ app.use(express.json());
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Session (PostgreSQL-backed)
+if (!process.env.SESSION_SECRET) {
+  console.error('FATAL: SESSION_SECRET environment variable is not set.');
+  process.exit(1);
+}
+
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'dcf-visualizer-dev-secret',
+  store: new pgSession({
+    pool,
+    createTableIfMissing: true,
+  }),
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -41,10 +86,6 @@ const upload = multer({
 });
 
 // ── 3. Database setup (PostgreSQL) ──
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-});
 
 async function initDB() {
   await pool.query(`
@@ -73,10 +114,24 @@ function requireAuth(req, res, next) {
   next();
 }
 
-// ── 5. AUTH ROUTES ──
+// ── 5. Rate limiting ──
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+
+// ── 6. Health check ──
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+// ── 7. AUTH ROUTES ──
 
 // POST /api/register — create a new account
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', authLimiter, async (req, res, next) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
@@ -89,26 +144,28 @@ app.post('/api/register', async (req, res) => {
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
 
-  const existing = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-  if (existing.rows.length > 0) {
-    return res.status(409).json({ error: 'Username already taken' });
+  try {
+    const hash = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id',
+      [username, hash]
+    );
+
+    req.session.userId = result.rows[0].id;
+    req.session.username = username;
+
+    res.status(201).json({ message: 'Account created', username });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+    next(err);
   }
-
-  const hash = await bcrypt.hash(password, 10);
-
-  const result = await pool.query(
-    'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id',
-    [username, hash]
-  );
-
-  req.session.userId = result.rows[0].id;
-  req.session.username = username;
-
-  res.status(201).json({ message: 'Account created', username });
 });
 
 // POST /api/login — authenticate an existing user
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', authLimiter, async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
@@ -147,7 +204,7 @@ app.get('/api/me', (req, res) => {
   }
 });
 
-// ── 6. FILE ROUTES ──
+// ── 8. FILE ROUTES ──
 
 // POST /api/files — upload and save a file
 app.post('/api/files', requireAuth, upload.single('file'), async (req, res) => {
@@ -204,7 +261,18 @@ app.delete('/api/files/:id', requireAuth, async (req, res) => {
   res.json({ message: 'File deleted' });
 });
 
-// ── 7. Start the server ──
+// ── 9. Global error handler ──
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  const status = err.status || 500;
+  res.status(status).json({
+    error: process.env.NODE_ENV === 'production'
+      ? 'Internal server error'
+      : err.message,
+  });
+});
+
+// ── 10. Start the server ──
 initDB()
   .then(() => {
     app.listen(PORT, () => {
