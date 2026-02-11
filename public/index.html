@@ -13,14 +13,22 @@
   <nav id="auth-bar">
     <!-- Shown when logged out -->
     <div id="auth-logged-out">
+      <div class="auth-left">
+        <button id="show-login-btn" class="btn-auth">Log In</button>
+        <button id="show-register-btn" class="btn-auth btn-auth-alt">Register</button>
+      </div>
       <span class="auth-prompt">Log in to save files</span>
-      <button id="show-login-btn" class="btn-auth">Log In</button>
-      <button id="show-register-btn" class="btn-auth btn-auth-alt">Register</button>
     </div>
     <!-- Shown when logged in -->
     <div id="auth-logged-in" hidden>
-      <span id="auth-username" class="auth-user"></span>
-      <button id="logout-btn" class="btn-auth btn-auth-alt">Log Out</button>
+      <div class="auth-left">
+        <span id="auth-username" class="auth-user"></span>
+      </div>
+      <div class="auth-right">
+        <a href="#" id="nav-my-account" class="nav-link">My Account</a>
+        <a href="#" id="nav-my-files" class="nav-link">My Files</a>
+        <button id="logout-btn" class="btn-auth btn-auth-alt">Log Out</button>
+      </div>
     </div>
   </nav>
 

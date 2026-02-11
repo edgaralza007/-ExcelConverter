@@ -34,6 +34,8 @@
   const myFilesPanel     = document.getElementById('my-files');
   const myFilesList      = document.getElementById('my-files-list');
   const myFilesEmpty     = document.getElementById('my-files-empty');
+  const navMyAccount     = document.getElementById('nav-my-account');
+  const navMyFiles       = document.getElementById('nav-my-files');
 
   // State
   let currentFile = null;  // the File object currently being viewed
@@ -108,6 +110,41 @@
   logoutBtn.addEventListener('click', async () => {
     await fetch('/api/logout', { method: 'POST' });
     setLoggedOut();
+  });
+
+  // Nav links — My Account & My Files
+  navMyAccount.addEventListener('click', (e) => {
+    e.preventDefault();
+    // Navigate back to upload screen and show account info
+    if (!dashboard.hidden) {
+      charts.forEach((c) => c.destroy());
+      charts = [];
+      dashboard.hidden = true;
+      uploadScreen.style.display = '';
+      currentFile = null;
+      saveFileBtn.hidden = true;
+      document.getElementById('sensitivity-table').innerHTML = '';
+    }
+    myFilesPanel.hidden = false;
+    loadMyFiles();
+    myFilesPanel.scrollIntoView({ behavior: 'smooth' });
+  });
+
+  navMyFiles.addEventListener('click', (e) => {
+    e.preventDefault();
+    // Navigate back to upload screen and scroll to saved files
+    if (!dashboard.hidden) {
+      charts.forEach((c) => c.destroy());
+      charts = [];
+      dashboard.hidden = true;
+      uploadScreen.style.display = '';
+      currentFile = null;
+      saveFileBtn.hidden = true;
+      document.getElementById('sensitivity-table').innerHTML = '';
+    }
+    myFilesPanel.hidden = false;
+    loadMyFiles();
+    myFilesPanel.scrollIntoView({ behavior: 'smooth' });
   });
 
   function setLoggedIn(username) {
