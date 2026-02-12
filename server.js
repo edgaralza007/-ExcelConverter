@@ -58,8 +58,6 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Session (PostgreSQL-backed)
-console.log('SESSION_SECRET present:', !!process.env.SESSION_SECRET);
-console.log('SESSION_SECRET length:', (process.env.SESSION_SECRET || '').length);
 if (!process.env.SESSION_SECRET) {
   console.error('FATAL: SESSION_SECRET environment variable is not set.');
   process.exit(1);
